@@ -2,9 +2,9 @@
 import { GoogleGenAI } from "@google/genai";
 import { GenerationConfig } from "../types";
 
-export const generateSwappedCard = async (config: GenerationConfig): Promise<string> => {
-  // Always create a new instance to ensure we have the latest API key if it was just selected
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const generateSwappedCard = async (apiKey: string, config: GenerationConfig): Promise<string> => {
+  // Use the provided API key
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   const { referenceImage, characterImage, characterName, aspectRatio, userInstructions } = config;
 
@@ -90,8 +90,8 @@ export const generateSwappedCard = async (config: GenerationConfig): Promise<str
   }
 };
 
-export const refineCard = async (currentImageBase64: string, instruction: string, aspectRatio: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const refineCard = async (apiKey: string, currentImageBase64: string, instruction: string, aspectRatio: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   // Remove data URL prefix if present for the API call
   const cleanBase64 = currentImageBase64.replace(/^data:image\/(png|jpeg|webp);base64,/, "");
 

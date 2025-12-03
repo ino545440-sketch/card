@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import ImageUploader from './components/ImageUploader';
 import { generateSwappedCard, refineCard } from './services/geminiService';
@@ -5,7 +6,9 @@ import { FileData, AspectRatio } from './types';
 import { calculateClosestAspectRatio } from './utils';
 
 const App: React.FC = () => {
+  const [apiKey, setApiKey] = useState<string>("");
   const [hasKey, setHasKey] = useState<boolean>(false);
+  
   const [referenceCard, setReferenceCard] = useState<FileData | null>(null);
   const [characterImage, setCharacterImage] = useState<FileData | null>(null);
   const [characterName, setCharacterName] = useState<string>("");
@@ -35,25 +38,63 @@ const App: React.FC = () => {
   }, [referenceCard]);
 
   const checkApiKey = async () => {
-    // Cast window to any to avoid type declaration conflicts if the environment already defines it
     const win = window as any;
+    
+    // 1. Check if running in AI Studio environment
     if (win.aistudio && win.aistudio.hasSelectedApiKey) {
       const has = await win.aistudio.hasSelectedApiKey();
       setHasKey(has);
-    } else {
-      // Fallback for dev environments without the special window object, 
-      // or assume true if env var exists (though the instructions specify window.aistudio usage).
-      // For this specific prompt requirement, we default to false if the API isn't present to force the UI flow if needed.
-      setHasKey(!!process.env.API_KEY); 
+      // In AI Studio, the key is injected into process.env, so we grab it if possible or rely on the env injection
+      if (process.env.API_KEY) {
+        setApiKey(process.env.API_KEY);
+      }
+      return;
+    } 
+
+    // 2. Check LocalStorage for manually saved key (Deployed environment)
+    const storedKey = localStorage.getItem("gemini_api_key");
+    if (storedKey) {
+      setApiKey(storedKey);
+      setHasKey(true);
+      return;
     }
+
+    // 3. Fallback: No key found
+    setHasKey(false);
   };
 
-  const handleSelectKey = async () => {
+  const handleSelectKeyAIStudio = async () => {
     const win = window as any;
     if (win.aistudio && win.aistudio.openSelectKey) {
       await win.aistudio.openSelectKey();
-      // Assume success after closing dialog as per instructions
       setHasKey(true);
+      // Wait a moment for the env to propagate if needed, though usually requires a reload or reactive update
+      // For this logic, we assume the environment handles the injection.
+      if (process.env.API_KEY) {
+        setApiKey(process.env.API_KEY);
+      }
+    }
+  };
+
+  const handleManualKeySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (apiKey.trim().startsWith("AIza")) {
+      localStorage.setItem("gemini_api_key", apiKey.trim());
+      setHasKey(true);
+    } else {
+      setError("有効なAPIキーを入力してください (AIzaから始まる文字列)");
+    }
+  };
+
+  const handleClearKey = () => {
+    localStorage.removeItem("gemini_api_key");
+    setApiKey("");
+    setHasKey(false);
+    
+    const win = window as any;
+    if (win.aistudio) {
+        // Just reload in AI Studio to trigger key re-selection if needed
+        window.location.reload();
     }
   };
 
@@ -63,10 +104,22 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setGeneratedImage(null);
-    setRefinementPrompt(""); // Reset refinement input on new generation
+    setRefinementPrompt(""); 
+
+    // Determine which key to use. 
+    // In AI Studio: process.env.API_KEY might be set. 
+    // In deployed app: apiKey state is set.
+    const effectiveKey = apiKey || process.env.API_KEY;
+
+    if (!effectiveKey) {
+        setError("APIキーが見つかりません。");
+        setIsLoading(false);
+        setHasKey(false);
+        return;
+    }
 
     try {
-      const resultImageUrl = await generateSwappedCard({
+      const resultImageUrl = await generateSwappedCard(effectiveKey, {
         referenceImage: referenceCard,
         characterImage: characterImage,
         characterName: characterName,
@@ -75,11 +128,18 @@ const App: React.FC = () => {
       });
       setGeneratedImage(resultImageUrl);
     } catch (err: any) {
-      if (err.toString().includes("Requested entity was not found")) {
-         setHasKey(false);
-         setError("APIキーのセッションが期限切れか無効です。キーを再選択してください。");
+      if (err.toString().includes("Requested entity was not found") || err.toString().includes("403") || err.toString().includes("401")) {
+         // API Key issue
+         if (!window.aistudio) {
+            localStorage.removeItem("gemini_api_key");
+            setHasKey(false);
+            setError("APIキーが無効です。再度入力してください。");
+         } else {
+             setHasKey(false);
+             setError("APIキーのセッションが期限切れか無効です。キーを再選択してください。");
+         }
       } else {
-        setError("画像の生成に失敗しました。もう一度お試しください。" + (err.message || ""));
+        setError("画像の生成に失敗しました。もう一度お試しください。\n" + (err.message || ""));
       }
     } finally {
       setIsLoading(false);
@@ -92,17 +152,31 @@ const App: React.FC = () => {
     setIsRefining(true);
     setError(null);
 
+    const effectiveKey = apiKey || process.env.API_KEY;
+
+    if (!effectiveKey) {
+        setError("APIキーが見つかりません。");
+        setIsRefining(false);
+        return;
+    }
+
     try {
-      const refinedImageUrl = await refineCard(generatedImage, refinementPrompt, targetAspectRatio);
+      const refinedImageUrl = await refineCard(effectiveKey, generatedImage, refinementPrompt, targetAspectRatio);
       setGeneratedImage(refinedImageUrl);
-      setRefinementPrompt(""); // Clear prompt after successful refinement
+      setRefinementPrompt(""); 
     } catch (err: any) {
-      if (err.toString().includes("Requested entity was not found")) {
-         setHasKey(false);
-         setError("APIキーのセッションが期限切れか無効です。キーを再選択してください。");
-      } else {
-        setError("微調整に失敗しました。" + (err.message || ""));
-      }
+        // Error handling similar to generate
+        if (err.toString().includes("Requested entity was not found")) {
+             if (!window.aistudio) {
+                localStorage.removeItem("gemini_api_key");
+                setHasKey(false);
+             } else {
+                 setHasKey(false);
+             }
+             setError("APIキーが無効です。");
+        } else {
+            setError("微調整に失敗しました。" + (err.message || ""));
+        }
     } finally {
       setIsRefining(false);
     }
@@ -119,9 +193,10 @@ const App: React.FC = () => {
   };
 
   const isProcessing = isLoading || isRefining;
+  const isAIStudio = !!(window as any).aistudio;
 
   // ----------------------------------------------------------------------
-  // Render: API Key Selection
+  // Render: API Key Selection / Input
   // ----------------------------------------------------------------------
   if (!hasKey) {
     return (
@@ -134,17 +209,50 @@ const App: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold text-white mb-3">APIキーが必要です</h1>
           <p className="text-slate-400 mb-8">
-            高品質なNano Banana Pro (Gemini 3 Pro)モデルを使用して画像を生成するには、Google Cloud Projectの有効なAPIキーを接続する必要があります。
+            高品質なNano Banana Pro (Gemini 3 Pro)モデルを使用して画像を生成するには、Google Cloud Projectの有効なAPIキーが必要です。
           </p>
-          <button
-            onClick={handleSelectKey}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
-          >
-            APIキーを選択
-          </button>
+          
+          {error && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+                  {error}
+              </div>
+          )}
+
+          {isAIStudio ? (
+            <button
+                onClick={handleSelectKeyAIStudio}
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
+            >
+                APIキーを選択 (AI Studio)
+            </button>
+          ) : (
+            <form onSubmit={handleManualKeySubmit} className="flex flex-col gap-4">
+                <input 
+                    type="password" 
+                    placeholder="Gemini API Key (AIza...)"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                    type="submit"
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
+                >
+                    開始する
+                </button>
+                <div className="text-xs text-slate-500 mt-2">
+                    入力されたキーはブラウザにのみ保存され、サーバーには送信されません。
+                </div>
+            </form>
+          )}
+
           <div className="mt-6 text-xs text-slate-500">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
+              APIキーを取得する
+            </a>
+            <span className="mx-2">|</span>
             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
-              お支払い情報について
+              料金について
             </a>
           </div>
         </div>
@@ -184,10 +292,10 @@ const App: React.FC = () => {
             </div>
           </div>
           <button 
-            onClick={handleSelectKey}
+            onClick={handleClearKey}
             className="text-xs text-slate-500 hover:text-white transition-colors"
           >
-            アカウント切り替え
+            APIキー変更
           </button>
         </div>
       </header>
@@ -266,7 +374,7 @@ const App: React.FC = () => {
             </div>
 
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm whitespace-pre-wrap">
                 <strong>エラー:</strong> {error}
               </div>
             )}
