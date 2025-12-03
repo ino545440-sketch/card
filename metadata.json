@@ -1,0 +1,5 @@
+{
+  "name": "Card Character Swapper",
+  "description": "A tool to swap characters into a reference card design using Gemini 3 Pro Image model.",
+  "requestFramePermissions": []
+}
