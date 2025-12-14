@@ -129,7 +129,8 @@ const App: React.FC = () => {
     } catch (err: any) {
       if (err.toString().includes("Requested entity was not found") || err.toString().includes("403") || err.toString().includes("401")) {
          // API Key issue
-         if (!window.aistudio) {
+         // FIX: Use (window as any) to avoid TypeScript error about 'aistudio' property
+         if (!(window as any).aistudio) {
             localStorage.removeItem("gemini_api_key");
             setHasKey(false);
             setError("APIキーが無効です。再度入力してください。");
