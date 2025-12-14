@@ -23,7 +23,7 @@ const App: React.FC = () => {
   const [refinementPrompt, setRefinementPrompt] = useState<string>("");
 
   // WordPress site URL (Replace with your actual WordPress URL)
-  const WORDPRESS_SITE_URL = "https://your-wordpress-site.com";
+  const WORDPRESS_SITE_URL = "https://gcxxblog.com/";
 
   // Cost estimation constants
   const COST_PER_IMAGE_USD = 0.04; // Estimated cost for Gemini 3 Pro Image
@@ -289,8 +289,8 @@ const App: React.FC = () => {
                   <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 hidden sm:block">
-                CardSwap <span className="text-xs font-normal text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 ml-1">NanoBananaPro</span>
+              <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 block">
+                CardSwap <span className="text-xs font-normal text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 ml-1 hidden sm:inline-block">NanoBananaPro</span>
               </h1>
             </div>
           </div>
