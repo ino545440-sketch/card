@@ -25,6 +25,11 @@ const App: React.FC = () => {
   // WordPress site URL (Replace with your actual WordPress URL)
   const WORDPRESS_SITE_URL = "https://your-wordpress-site.com";
 
+  // Cost estimation constants
+  const COST_PER_IMAGE_USD = 0.04; // Estimated cost for Gemini 3 Pro Image
+  const EXCHANGE_RATE = 150; // JPY per USD
+  const costInYen = Math.ceil(COST_PER_IMAGE_USD * EXCHANGE_RATE);
+
   useEffect(() => {
     checkApiKey();
   }, []);
@@ -43,12 +48,13 @@ const App: React.FC = () => {
     // 1. Check if running in AI Studio environment
     if (win.aistudio && win.aistudio.hasSelectedApiKey) {
       const has = await win.aistudio.hasSelectedApiKey();
-      setHasKey(has);
-      // In AI Studio, the key is injected into process.env, so we grab it if possible or rely on the env injection
-      if (process.env.API_KEY) {
-        setApiKey(process.env.API_KEY);
+      if (has) {
+        setHasKey(true);
+        if (process.env.API_KEY) {
+          setApiKey(process.env.API_KEY);
+        }
+        return;
       }
-      return;
     } 
 
     // 2. Check LocalStorage for manually saved key (Deployed environment)
@@ -68,8 +74,6 @@ const App: React.FC = () => {
     if (win.aistudio && win.aistudio.openSelectKey) {
       await win.aistudio.openSelectKey();
       setHasKey(true);
-      // Wait a moment for the env to propagate if needed, though usually requires a reload or reactive update
-      // For this logic, we assume the environment handles the injection.
       if (process.env.API_KEY) {
         setApiKey(process.env.API_KEY);
       }
@@ -78,11 +82,12 @@ const App: React.FC = () => {
 
   const handleManualKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.trim().startsWith("AIza")) {
+    // Simple validation: check if not empty.
+    if (apiKey.trim().length > 0) {
       localStorage.setItem("gemini_api_key", apiKey.trim());
       setHasKey(true);
     } else {
-      setError("有効なAPIキーを入力してください (AIzaから始まる文字列)");
+      setError("有効なAPIキーを入力してください。");
     }
   };
 
@@ -90,12 +95,6 @@ const App: React.FC = () => {
     localStorage.removeItem("gemini_api_key");
     setApiKey("");
     setHasKey(false);
-    
-    const win = window as any;
-    if (win.aistudio) {
-        // Just reload in AI Studio to trigger key re-selection if needed
-        window.location.reload();
-    }
   };
 
   const handleGenerate = async () => {
@@ -135,8 +134,9 @@ const App: React.FC = () => {
             setHasKey(false);
             setError("APIキーが無効です。再度入力してください。");
          } else {
+             // Even in AI Studio, allow retry if key fails
              setHasKey(false);
-             setError("APIキーのセッションが期限切れか無効です。キーを再選択してください。");
+             setError("APIキーのセッションが期限切れか無効です。キーを再設定してください。");
          }
       } else {
         setError("画像の生成に失敗しました。もう一度お試しください。\n" + (err.message || ""));
@@ -167,12 +167,8 @@ const App: React.FC = () => {
     } catch (err: any) {
         // Error handling similar to generate
         if (err.toString().includes("Requested entity was not found")) {
-             if (!window.aistudio) {
-                localStorage.removeItem("gemini_api_key");
-                setHasKey(false);
-             } else {
-                 setHasKey(false);
-             }
+             localStorage.removeItem("gemini_api_key");
+             setHasKey(false);
              setError("APIキーが無効です。");
         } else {
             setError("微調整に失敗しました。" + (err.message || ""));
@@ -207,9 +203,10 @@ const App: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-3">APIキーが必要です</h1>
+          <h1 className="text-2xl font-bold text-white mb-3">APIキー設定</h1>
           <p className="text-slate-400 mb-8">
-            高品質なNano Banana Pro (Gemini 3 Pro)モデルを使用して画像を生成するには、Google Cloud Projectの有効なAPIキーが必要です。
+            画像を生成するにはGemini APIキーが必要です。<br/>
+            <span className="text-xs text-slate-500">※無料枠のAPIキーでもご利用いただけます。</span>
           </p>
           
           {error && (
@@ -218,41 +215,46 @@ const App: React.FC = () => {
               </div>
           )}
 
-          {isAIStudio ? (
-            <button
-                onClick={handleSelectKeyAIStudio}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
-            >
-                APIキーを選択 (AI Studio)
-            </button>
-          ) : (
-            <form onSubmit={handleManualKeySubmit} className="flex flex-col gap-4">
-                <input 
-                    type="password" 
-                    placeholder="Gemini API Key (AIza...)"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                    type="submit"
-                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
-                >
-                    開始する
-                </button>
-                <div className="text-xs text-slate-500 mt-2">
-                    入力されたキーはブラウザにのみ保存され、サーバーには送信されません。
-                </div>
-            </form>
+          {/* 常に手動入力を表示する */}
+          <form onSubmit={handleManualKeySubmit} className="flex flex-col gap-4">
+              <input 
+                  type="password" 
+                  placeholder="Gemini API Key (例: AIza...)"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              />
+              <button
+                  type="submit"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
+              >
+                  利用を開始する
+              </button>
+              <div className="text-xs text-slate-500 mt-2">
+                  入力されたキーはブラウザにのみ保存され、サーバーには送信されません。
+              </div>
+          </form>
+
+          {/* AI Studio環境の場合の補助ボタン */}
+          {isAIStudio && (
+            <>
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-600 text-xs">または</span>
+                <div className="flex-grow border-t border-slate-800"></div>
+              </div>
+              <button
+                  onClick={handleSelectKeyAIStudio}
+                  className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-400 font-medium rounded-xl transition-all text-sm"
+              >
+                  AI Studioのキーを選択
+              </button>
+            </>
           )}
 
           <div className="mt-6 text-xs text-slate-500">
             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
-              APIキーを取得する
-            </a>
-            <span className="mx-2">|</span>
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
-              料金について
+              APIキーを取得 (Google AI Studio)
             </a>
           </div>
         </div>
@@ -379,35 +381,42 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <button
-              onClick={handleGenerate}
-              disabled={!referenceCard || !characterImage || isProcessing}
-              className={`
-                w-full py-4 text-lg font-bold rounded-xl shadow-lg transition-all
-                flex items-center justify-center gap-3
-                ${!referenceCard || !characterImage || isProcessing
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-blue-500/20 hover:shadow-blue-500/40 active:scale-[0.98]'
-                }
-              `}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>生成中... (約10-20秒)</span>
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                  </svg>
-                  カードを生成
-                </>
-              )}
-            </button>
+            <div>
+              <button
+                onClick={handleGenerate}
+                disabled={!referenceCard || !characterImage || isProcessing}
+                className={`
+                  w-full py-4 text-lg font-bold rounded-xl shadow-lg transition-all
+                  flex items-center justify-center gap-3
+                  ${!referenceCard || !characterImage || isProcessing
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-blue-500/20 hover:shadow-blue-500/40 active:scale-[0.98]'
+                  }
+                `}
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>生成中... (約10-20秒)</span>
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                    カードを生成
+                  </>
+                )}
+              </button>
+              <div className="text-center mt-2 text-xs text-slate-500">
+                  <span className="inline-block bg-slate-800/50 px-2 py-1 rounded border border-slate-700">
+                    予想コスト: 約{costInYen}円 (${COST_PER_IMAGE_USD}) / 回
+                  </span>
+              </div>
+            </div>
           </div>
 
           {/* RIGHT PANEL: Output */}
@@ -475,7 +484,7 @@ const App: React.FC = () => {
                        </svg>
                        さらに微調整 (任意)
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-start">
                         <textarea
                             value={refinementPrompt}
                             onChange={(e) => setRefinementPrompt(e.target.value)}
@@ -483,26 +492,31 @@ const App: React.FC = () => {
                             className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-20 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isProcessing}
                         />
-                        <button
-                            onClick={handleRefine}
-                            disabled={!refinementPrompt.trim() || isProcessing}
-                            className={`
-                              px-6 font-semibold rounded-xl transition-all flex flex-col items-center justify-center min-w-[100px]
-                              ${!refinementPrompt.trim() || isProcessing
-                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                              }
-                            `}
-                        >
-                            {isRefining ? (
-                                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                "適用"
-                            )}
-                        </button>
+                        <div className="flex flex-col gap-1 items-center">
+                            <button
+                                onClick={handleRefine}
+                                disabled={!refinementPrompt.trim() || isProcessing}
+                                className={`
+                                  px-6 h-12 font-semibold rounded-xl transition-all flex items-center justify-center min-w-[100px]
+                                  ${!refinementPrompt.trim() || isProcessing
+                                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                  }
+                                `}
+                            >
+                                {isRefining ? (
+                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                ) : (
+                                    "適用"
+                                )}
+                            </button>
+                            <span className="text-[10px] text-slate-500">
+                                約{costInYen}円/回
+                            </span>
+                        </div>
                     </div>
                   </div>
                )}
