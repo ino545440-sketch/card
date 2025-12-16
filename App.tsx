@@ -24,6 +24,8 @@ const App: React.FC = () => {
 
   // WordPress site URL (Replace with your actual WordPress URL)
   const WORDPRESS_SITE_URL = "https://gcxxblog.com/";
+  // Usage page URL
+  const USAGE_SITE_URL = "https://gcxxblog.com/card_tatakae/";
 
   // Cost estimation constants
   const COST_PER_IMAGE_USD = 0.04; // Estimated cost for Gemini 3 Pro Image
@@ -129,7 +131,6 @@ const App: React.FC = () => {
     } catch (err: any) {
       if (err.toString().includes("Requested entity was not found") || err.toString().includes("403") || err.toString().includes("401")) {
          // API Key issue
-         // FIX: Use (window as any) to avoid TypeScript error about 'aistudio' property
          if (!(window as any).aistudio) {
             localStorage.removeItem("gemini_api_key");
             setHasKey(false);
@@ -272,31 +273,46 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <a 
               href={WORDPRESS_SITE_URL}
-              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm px-3 py-1.5 rounded-lg hover:bg-slate-800"
+              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm px-2 py-1.5 sm:px-3 rounded-lg hover:bg-slate-800"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              サイトに戻る
+              <span className="hidden sm:inline">サイトに戻る</span>
+              <span className="inline sm:hidden">戻る</span>
             </a>
-            <div className="h-6 w-px bg-slate-700"></div>
-            <div className="flex items-center gap-2">
+
+            <a 
+              href={USAGE_SITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm px-2 py-1.5 sm:px-3 rounded-lg hover:bg-slate-800"
+            >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+               </svg>
+               <span>使い方</span>
+            </a>
+
+            <div className="h-6 w-px bg-slate-700 hidden md:block"></div>
+            
+            <div className="flex items-center gap-2 hidden md:flex">
               <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/20">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                 </svg>
               </div>
               <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 block">
-                CardSwap <span className="text-xs font-normal text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 ml-1 hidden sm:inline-block">NanoBananaPro</span>
+                CardSwap <span className="text-xs font-normal text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 ml-1 hidden lg:inline-block">NanoBananaPro</span>
               </h1>
             </div>
           </div>
           <button 
             onClick={handleClearKey}
-            className="text-xs text-slate-500 hover:text-white transition-colors"
+            className="text-xs text-slate-500 hover:text-white transition-colors whitespace-nowrap"
           >
             APIキー変更
           </button>
